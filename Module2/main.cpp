@@ -1,4 +1,5 @@
 #include "SDL3/SDL_error.h"
+#include "SDL3/SDL_events.h"
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_video.h"
 #include <SDL3/SDL.h>
@@ -10,7 +11,7 @@
 int main()
 {
   //Step 1
-  if(!SDL_INIT_VIDEO)
+   if(SDL_Init(SDL_INIT_VIDEO) < 0 )
   {
     std::cout << "SDL init failed bro" << std::endl;
     return -1;
@@ -28,9 +29,11 @@ int main()
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
+   
+   int width = 800;
+   int height = 600;
   //create the window
-  SDL_Window* window = SDL_CreateWindow("Kyle Meyer(cool)", 800, 600, SDL_WINDOW_OPENGL);
+   SDL_Window* window = SDL_CreateWindow("Kyle Meyer(cool)", width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
   if (!window) 
   {
@@ -60,10 +63,24 @@ int main()
     //event loop listener
     while (SDL_PollEvent(&event)) 
     {
-      if (event.type == SDL_EVENT_QUIT) 
+      switch(event.type)
       {
-          running = false;
+         case SDL_EVENT_QUIT:
+            running = false;
+            break;
+
+         case SDL_EVENT_WINDOW_RESIZED:
+            SDL_GetWindowSize(window, &width, &height);
+            glViewport(0,0, width, height);
+            break;
+
+         default:
+            std::cout << "unknown event type" << std::endl;
+            running = false;
+            break;
       }
+
+   
     }
 
     //clear the back buffer for re-use
