@@ -8,6 +8,38 @@
 #include <stdio.h>
 #include <iostream>
 
+
+bool handleKeys(SDL_Event event)
+{
+  // Initialize line width and point size
+  float lineWidth = 1.0f;
+  float pointSize = 2.0f;
+
+  SDL_Keycode key = event.key.key;
+              
+  if (key == SDLK_ESCAPE) 
+  {
+    std::cout << "ESC pressed - Quitting application" << std::endl;
+    return false;
+  }
+  else if (key >= SDLK_1 && key <= SDLK_9) 
+  {
+    // Convert keycode to digit (1-9)
+    int digit = key - SDLK_0;
+    lineWidth = (float)digit;
+    pointSize = lineWidth * 2.0f;
+    
+    // Set OpenGL line width and point size
+    glLineWidth(lineWidth);
+    glPointSize(pointSize);
+    
+    std::cout << "Line width set to: " << lineWidth << ", point size set to: " << pointSize << std::endl;
+  }
+  
+  return true;
+}
+
+
 int main()
 {
   //Step 1
@@ -26,8 +58,8 @@ int main()
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
   //set the openGL version
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 4);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
    
    int width = 800;
@@ -74,10 +106,10 @@ int main()
             glViewport(0,0, width, height);
             break;
 
-         default:
-            std::cout << "unknown event type" << std::endl;
-            running = false;
+          case SDL_EVENT_KEY_DOWN:
+            running = handleKeys(event);
             break;
+
       }
 
    
