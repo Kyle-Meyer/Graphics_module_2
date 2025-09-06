@@ -7,7 +7,91 @@
 #include <GL/gl.h>
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
 
+// Global variables for rendering
+std::vector<float> clickPoints; // Store x,y pairs
+GLuint shaderProgram, VAO, VBO;
+
+std::string readShaderFile(const std::string& filePath) 
+{
+    std::ifstream file;
+    std::stringstream buffer;
+    
+    // Ensure ifstream objects can throw exceptions
+    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    
+    try 
+    {
+        file.open(filePath);
+        buffer << file.rdbuf();
+        file.close();
+        return buffer.str();
+    }
+    catch (std::ifstream::failure& e) 
+    {
+        std::cout << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << e.what() << std::endl;
+        std::cout << "Failed to read: " << filePath << std::endl;
+        return "";
+    }
+}
+
+GLuint compileShader(GLenum type, const char* source)
+{
+  GLuint shader = glCreateShader(type);
+  glShaderSource(shader, 1, &source, NULL);
+  glCompileShader(shader);
+
+  int success;
+  char infoLog[512];
+  if(!success)
+  {
+    glGetShaderInfoLog(shader, 512, NULL, infoLog);
+    std::cout << "shader compilation failed: " << infoLog << std::endl;
+  }
+
+  return shader;
+}
+
+GLuint createShaderProgram()
+{
+  std::string vertexCode = readShaderFile("vertex_shader.glsl");
+  std::string fragmentCode = readShaderFile("fragment_shader.glsl");
+
+  if(vertexCode.empty() || fragmentCode.empty())
+  {
+    std::cout << "Failed to load both shader files" << std::endl;
+    return 0;
+  }
+
+  //compile the shaders
+  GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexCode.c_str());
+  GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentCode.c_str());
+
+  //create the program 
+  GLuint program = glCreateProgram();
+  glAttachShader(program, vertexShader);
+  glAttachShader(program, fragmentShader);
+  glLinkProgram(program);
+
+  //check the linking
+  int success;
+  char infoLog[512];
+  glGetProgramiv(program, GL_LINK_STATUS, &success);
+  if(!success)
+  {
+    glGetProgramInfoLog(program, 512, NULL, infoLog);
+    std::cout << "Program linking failed: " << infoLog << std::endl;
+  }
+  
+  //clean up time 
+  glDeleteShader(vertexShader);
+  glDeleteShader(fragmentShader);
+
+  return program;
+}
 
 bool handleKeys(SDL_Event event)
 {
@@ -87,6 +171,24 @@ int main()
   //not sure if vsync is needed, but the docs recommended it 
   SDL_GL_SetSwapInterval(1) ;
 
+  //create the shader 
+  shaderProgram = createShaderProgram();
+
+  //create the VAO and VBO
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+  //set vertex attribute pointers
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+  glEnableVertexAttribArray(0);
+
+  //unbind
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindVertexArray(0);
+
   //main run loop
   bool running = true;
   while(running)
@@ -110,21 +212,57 @@ int main()
             running = handleKeys(event);
             break;
 
+          case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (event.button.button == SDL_BUTTON_LEFT) 
+            {
+              float mouseX = event.button.x;
+              float mouseY = event.button.y;
+        
+              // Convert screen coordinates to normalized device coordinates (-1 to 1)
+              float ndcX = (mouseX / width) * 2.0f - 1.0f;
+              float ndcY = 1.0f - (mouseY / height) * 2.0f; // Flip Y axis
+        
+              clickPoints.push_back(ndcX);
+              clickPoints.push_back(ndcY);
+        
+              std::cout << "Click at: " << ndcX << ", " << ndcY << std::endl;
+            }
+            break;
       }
 
    
     }
 
     //clear the back buffer for re-use
-    glClearColor(0.2f, 0.3f, 0.8f, 1.0f);
+    glClearColor(0.6f, 0.3f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    //rest of rendering code later 
+    glUseProgram(shaderProgram);
+    if(!clickPoints.empty())
+    {
+      //update the VBO with click points 
+      glBindVertexArray(VAO);
+      glBindBuffer(GL_ARRAY_BUFFER, VBO);
+      glBufferData(GL_ARRAY_BUFFER, clickPoints.size() * sizeof(float),
+                   clickPoints.data(), GL_DYNAMIC_DRAW);
+
+      //draw 
+      glDrawArrays(GL_POINTS, 0, clickPoints.size()/2);
+
+      glBindVertexArray(0);
+    }
+
+    glUseProgram(0);
 
     //swapem 
     SDL_GL_SwapWindow(window);
   }
-  
+ 
+
+  glDeleteVertexArrays(1, &VAO);
+  glDeleteBuffers(1, &VBO);
+  glDeleteProgram(shaderProgram);
+
   //clean up after yourself
   SDL_GL_DestroyContext(context);
   SDL_DestroyWindow(window);

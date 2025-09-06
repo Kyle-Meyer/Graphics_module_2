@@ -130,7 +130,9 @@ endif()
 set(TARGET_LIST "GeometryTest")
 list(APPEND TARGET_LIST "SimpleShader")
 list(APPEND TARGET_LIST "Module2")
-
+# copy over the glsl files
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Module2/vertex_shader.glsl ${CMAKE_CURRENT_BINARY_DIR}/vertex_shader.glsl COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Module2/fragment_shader.glsl ${CMAKE_CURRENT_BINARY_DIR}/fragment_shader.glsl COPYONLY)
 
 #############################################
 # Add paths to be searched for header files #
