@@ -14,6 +14,8 @@
 // Global variables for rendering
 std::vector<float> clickPoints; // Store x,y pairs
 GLuint shaderProgram, VAO, VBO;
+GLint g_isDrawingPointsLocation;
+
 
 std::string readShaderFile(const std::string& filePath) 
 {
@@ -173,6 +175,8 @@ int main()
 
   //create the shader 
   shaderProgram = createShaderProgram();
+  //get the address of our uniform bool to help distinguish lines and point drawing
+  g_isDrawingPointsLocation = glGetUniformLocation(shaderProgram, "isDrawingPoints");
 
   //create the VAO and VBO
   glGenVertexArrays(1, &VAO);
@@ -234,7 +238,7 @@ int main()
     }
 
     //clear the back buffer for re-use
-    glClearColor(0.6f, 0.3f, 0.1f, 1.0f);
+    glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(shaderProgram);
@@ -245,10 +249,16 @@ int main()
       glBindBuffer(GL_ARRAY_BUFFER, VBO);
       glBufferData(GL_ARRAY_BUFFER, clickPoints.size() * sizeof(float),
                    clickPoints.data(), GL_DYNAMIC_DRAW);
-
-      //draw 
+      
+      //draw the points  
+      glUniform1i(g_isDrawingPointsLocation, 1); // true = drawing points
       glDrawArrays(GL_POINTS, 0, clickPoints.size()/2);
-
+      //draw a line between the two most recent points 
+      if(clickPoints.size() >= 4) //can only happen with at least 4 entries (2 x and 2 y floats)
+      {
+        glUniform1i(g_isDrawingPointsLocation, 0); // not drawing a point
+        glDrawArrays(GL_LINE_STRIP, 0, clickPoints.size()/2);
+      }
       glBindVertexArray(0);
     }
 
