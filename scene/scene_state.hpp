@@ -31,6 +31,11 @@ struct SceneState
     // Uniform locations
     GLint ortho_matrix_loc; // Orthographic projection location (2-D)
     GLint color_loc;        // Constant color
+    GLint is_drawing_points_loc;    // Boolean uniform for point vs line drawing
+    GLint point_size_loc;           // Point size uniform location
+
+    float point_size;    // Current point size
+    float line_width;    // Current line width
 
     // Current matrices
     std::array<float, 16> ortho; // Orthographic projection matrix (2-D)

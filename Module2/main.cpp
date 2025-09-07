@@ -7,276 +7,241 @@
 #include <GL/gl.h>
 #include <stdio.h>
 #include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
+#include <memory>
 
-// Global variables for rendering
-std::vector<float> clickPoints; // Store x,y pairs
-GLuint shaderProgram, VAO, VBO;
-GLint g_isDrawingPointsLocation;
+// Include scene graph classes
+#include "scene/scene_node.hpp"
+#include "scene/scene_state.hpp"
+#include "lineShaderNode.hpp"
+#include "pointShaderNode.hpp"
+#include "lineNode.hpp"
+#include "pointNode.hpp"
 
+using namespace cg;
 
-std::string readShaderFile(const std::string& filePath) 
+// Global scene graph components
+std::shared_ptr<SceneNode> root_node;
+std::shared_ptr<PointShaderNode> point_shader;
+std::shared_ptr<LineShaderNode> line_shader;
+std::shared_ptr<PointNode> point_geometry;
+std::shared_ptr<LineNode> line_geometry;
+SceneState scene_state;
+
+float g_lineWidth = 3.0f;
+float g_pointSize = 6.0f;
+
+bool initializeSceneGraph()
 {
-    std::ifstream file;
-    std::stringstream buffer;
+    // Initialize scene state
+    scene_state.point_size = g_pointSize;
+    scene_state.line_width = g_lineWidth;
+
+    // Create root node
+    root_node = std::make_shared<SceneNode>();
+    root_node->set_name("Root");
+
+    // Create shader nodes
+    point_shader = std::make_shared<PointShaderNode>();
+    point_shader->set_name("Point Shader");
     
-    // Ensure ifstream objects can throw exceptions
-    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    line_shader = std::make_shared<LineShaderNode>();
+    line_shader->set_name("Line Shader");
+
+    // Load shaders from files
+    if (!point_shader->create("vertex_shader.glsl", "fragment_shader.glsl"))
+    {
+        std::cout << "Failed to create point shader\n";
+        return false;
+    }
     
-    try 
+    if (!line_shader->create("vertex_shader.glsl", "fragment_shader.glsl"))
     {
-        file.open(filePath);
-        buffer << file.rdbuf();
-        file.close();
-        return buffer.str();
+        std::cout << "Failed to create line shader\n";
+        return false;
     }
-    catch (std::ifstream::failure& e) 
+
+    // Get shader locations
+    if (!point_shader->get_locations() || !line_shader->get_locations())
     {
-        std::cout << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << e.what() << std::endl;
-        std::cout << "Failed to read: " << filePath << std::endl;
-        return "";
+        std::cout << "Failed to get shader locations\n";
+        return false;
     }
-}
 
-GLuint compileShader(GLenum type, const char* source)
-{
-  GLuint shader = glCreateShader(type);
-  glShaderSource(shader, 1, &source, NULL);
-  glCompileShader(shader);
+    // Create geometry nodes
+    point_geometry = std::make_shared<PointNode>();
+    point_geometry->set_name("Point Geometry");
+    if (!point_geometry->initialize())
+    {
+        std::cout << "Failed to initialize point geometry\n";
+        return false;
+    }
 
-  int success;
-  char infoLog[512];
-  if(!success)
-  {
-    glGetShaderInfoLog(shader, 512, NULL, infoLog);
-    std::cout << "shader compilation failed: " << infoLog << std::endl;
-  }
+    line_geometry = std::make_shared<LineNode>();
+    line_geometry->set_name("Line Geometry");
+    if (!line_geometry->initialize())
+    {
+        std::cout << "Failed to initialize line geometry\n";
+        return false;
+    }
 
-  return shader;
-}
+    // Build scene graph
+    // Root -> Point Shader -> Point Geometry
+    //      -> Line Shader -> Line Geometry
+    root_node->add_child(point_shader);
+    point_shader->add_child(point_geometry);
+    
+    root_node->add_child(line_shader);
+    line_shader->add_child(line_geometry);
 
-GLuint createShaderProgram()
-{
-  std::string vertexCode = readShaderFile("vertex_shader.glsl");
-  std::string fragmentCode = readShaderFile("fragment_shader.glsl");
-
-  if(vertexCode.empty() || fragmentCode.empty())
-  {
-    std::cout << "Failed to load both shader files" << std::endl;
-    return 0;
-  }
-
-  //compile the shaders
-  GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexCode.c_str());
-  GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentCode.c_str());
-
-  //create the program 
-  GLuint program = glCreateProgram();
-  glAttachShader(program, vertexShader);
-  glAttachShader(program, fragmentShader);
-  glLinkProgram(program);
-
-  //check the linking
-  int success;
-  char infoLog[512];
-  glGetProgramiv(program, GL_LINK_STATUS, &success);
-  if(!success)
-  {
-    glGetProgramInfoLog(program, 512, NULL, infoLog);
-    std::cout << "Program linking failed: " << infoLog << std::endl;
-  }
-  
-  //clean up time 
-  glDeleteShader(vertexShader);
-  glDeleteShader(fragmentShader);
-
-  return program;
+    return true;
 }
 
 bool handleKeys(SDL_Event event)
 {
-  // Initialize line width and point size
-  float lineWidth = 1.0f;
-  float pointSize = 2.0f;
-
-  SDL_Keycode key = event.key.key;
+    SDL_Keycode key = event.key.key;
               
-  if (key == SDLK_ESCAPE) 
-  {
-    std::cout << "ESC pressed - Quitting application" << std::endl;
-    return false;
-  }
-  else if (key >= SDLK_1 && key <= SDLK_9) 
-  {
-    // Convert keycode to digit (1-9)
-    int digit = key - SDLK_0;
-    lineWidth = (float)digit;
-    pointSize = lineWidth * 2.0f;
-    
-    // Set OpenGL line width and point size
-    glLineWidth(lineWidth);
-    glPointSize(pointSize);
-    
-    std::cout << "Line width set to: " << lineWidth << ", point size set to: " << pointSize << std::endl;
-  }
-  
-  return true;
-}
+    if (key == SDLK_ESCAPE) 
+    {
+        std::cout << "ESC pressed - Quitting application" << std::endl;
+        return false;
+    }
+    else if (key >= SDLK_1 && key <= SDLK_9) 
+    {
+        // Convert keycode to digit (1-9)
+        int digit = key - SDLK_0;
 
+        g_lineWidth = (float)digit;
+        g_pointSize = g_lineWidth * 2.0f;
+        
+        // Update scene state
+        scene_state.line_width = g_lineWidth;
+        scene_state.point_size = g_pointSize;
+        
+        std::cout << "Line width set to: " << g_lineWidth << ", point size set to: " << g_pointSize << std::endl;
+    }
+    
+    return true;
+}
 
 int main()
 {
-  //Step 1
-   if(SDL_Init(SDL_INIT_VIDEO) < 0 )
-  {
-    std::cout << "SDL init failed bro" << std::endl;
-    return -1;
-  }
+    // Initialize SDL
+    if(SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        std::cout << "SDL init failed" << std::endl;
+        return -1;
+    }
 
-  //first set the color widths, if we want true color then we want 0-255, or 8 bit
-  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-  //now make it double buffer 
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    // Set OpenGL attributes
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-  //set the openGL version
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
    
-   int width = 800;
-   int height = 600;
-  //create the window
-   SDL_Window* window = SDL_CreateWindow("Kyle Meyer(cool)", width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    int width = 800;
+    int height = 600;
+    SDL_Window* window = SDL_CreateWindow("Module2 - Scene Graph Example", width, height, 
+                                         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
-  if (!window) 
-  {
-    std::cout << "Window creation failed: %s\n" << SDL_GetError() << std::endl;
-    SDL_Quit();
-    return -1;
-  }
+    if (!window) 
+    {
+        std::cout << "Window creation failed: " << SDL_GetError() << std::endl;
+        SDL_Quit();
+        return -1;
+    }
 
-  //create the context 
-  SDL_GLContext context = SDL_GL_CreateContext(window);
-  if(!context)
-  {
-    std::cout << "failed to bind context!" << SDL_GetError() << std::endl;
+    SDL_GLContext context = SDL_GL_CreateContext(window);
+    if(!context)
+    {
+        std::cout << "Failed to create OpenGL context: " << SDL_GetError() << std::endl;
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_GL_SetSwapInterval(1);
+
+    // Initialize scene graph
+    if (!initializeSceneGraph())
+    {
+        std::cout << "Failed to initialize scene graph" << std::endl;
+        return -1;
+    }
+
+    // Print scene graph structure
+    std::cout << "Scene Graph Structure:" << std::endl;
+    root_node->print_graph();
+
+    // Main loop
+    bool running = true;
+    while(running)
+    {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) 
+        {
+            switch(event.type)
+            {
+                case SDL_EVENT_QUIT:
+                    running = false;
+                    break;
+
+                case SDL_EVENT_WINDOW_RESIZED:
+                    SDL_GetWindowSize(window, &width, &height);
+                    glViewport(0, 0, width, height);
+                    break;
+
+                case SDL_EVENT_KEY_DOWN:
+                    running = handleKeys(event);
+                    break;
+
+                case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                    if (event.button.button == SDL_BUTTON_LEFT) 
+                    {
+                        float mouseX = event.button.x;
+                        float mouseY = event.button.y;
+                
+                        // Convert screen coordinates to NDC
+                        float ndcX = (mouseX / width) * 2.0f - 1.0f;
+                        float ndcY = 1.0f - (mouseY / height) * 2.0f;
+                
+                        // Add vertex to both point and line geometry
+                        point_geometry->add_vertex(ndcX, ndcY);
+                        line_geometry->add_vertex(ndcX, ndcY);
+                
+                        std::cout << "Click at: " << ndcX << ", " << ndcY << std::endl;
+                        std::cout << "Points: " << point_geometry->vertex_count() 
+                                  << ", Lines: " << line_geometry->vertex_count() << std::endl;
+                    }
+                    break;
+            }
+        }
+
+        // Clear the screen
+        glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Draw the scene graph
+        root_node->draw(scene_state);
+
+        // Swap buffers
+        SDL_GL_SwapWindow(window);
+    }
+
+    // Cleanup
+    root_node.reset();
+    point_shader.reset();
+    line_shader.reset();
+    point_geometry.reset();
+    line_geometry.reset();
+
+    SDL_GL_DestroyContext(context);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return -1;
-  }
 
-  //not sure if vsync is needed, but the docs recommended it 
-  SDL_GL_SetSwapInterval(1) ;
-
-  //create the shader 
-  shaderProgram = createShaderProgram();
-  //get the address of our uniform bool to help distinguish lines and point drawing
-  g_isDrawingPointsLocation = glGetUniformLocation(shaderProgram, "isDrawingPoints");
-
-  //create the VAO and VBO
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
-
-  glBindVertexArray(VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-  //set vertex attribute pointers
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-  glEnableVertexAttribArray(0);
-
-  //unbind
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
-
-  //main run loop
-  bool running = true;
-  while(running)
-  {
-    SDL_Event event;
-    //event loop listener
-    while (SDL_PollEvent(&event)) 
-    {
-      switch(event.type)
-      {
-         case SDL_EVENT_QUIT:
-            running = false;
-            break;
-
-         case SDL_EVENT_WINDOW_RESIZED:
-            SDL_GetWindowSize(window, &width, &height);
-            glViewport(0,0, width, height);
-            break;
-
-          case SDL_EVENT_KEY_DOWN:
-            running = handleKeys(event);
-            break;
-
-          case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            if (event.button.button == SDL_BUTTON_LEFT) 
-            {
-              float mouseX = event.button.x;
-              float mouseY = event.button.y;
-        
-              // Convert screen coordinates to normalized device coordinates (-1 to 1)
-              float ndcX = (mouseX / width) * 2.0f - 1.0f;
-              float ndcY = 1.0f - (mouseY / height) * 2.0f; // Flip Y axis
-        
-              clickPoints.push_back(ndcX);
-              clickPoints.push_back(ndcY);
-        
-              std::cout << "Click at: " << ndcX << ", " << ndcY << std::endl;
-            }
-            break;
-      }
-
-   
-    }
-
-    //clear the back buffer for re-use
-    glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glUseProgram(shaderProgram);
-    if(!clickPoints.empty())
-    {
-      //update the VBO with click points 
-      glBindVertexArray(VAO);
-      glBindBuffer(GL_ARRAY_BUFFER, VBO);
-      glBufferData(GL_ARRAY_BUFFER, clickPoints.size() * sizeof(float),
-                   clickPoints.data(), GL_DYNAMIC_DRAW);
-      
-      //draw the points  
-      glUniform1i(g_isDrawingPointsLocation, 1); // true = drawing points
-      glDrawArrays(GL_POINTS, 0, clickPoints.size()/2);
-      //draw a line between the two most recent points 
-      if(clickPoints.size() >= 4) //can only happen with at least 4 entries (2 x and 2 y floats)
-      {
-        glUniform1i(g_isDrawingPointsLocation, 0); // not drawing a point
-        glDrawArrays(GL_LINE_STRIP, 0, clickPoints.size()/2);
-      }
-      glBindVertexArray(0);
-    }
-
-    glUseProgram(0);
-
-    //swapem 
-    SDL_GL_SwapWindow(window);
-  }
- 
-
-  glDeleteVertexArrays(1, &VAO);
-  glDeleteBuffers(1, &VBO);
-  glDeleteProgram(shaderProgram);
-
-  //clean up after yourself
-  SDL_GL_DestroyContext(context);
-  SDL_DestroyWindow(window);
-  SDL_Quit();
-
-  return 0;
+    return 0;
 }
