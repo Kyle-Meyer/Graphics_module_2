@@ -55,8 +55,8 @@ void LineNode::draw(SceneState &scene_state)
         vbo_dirty_ = false;
     }
 
-    // Set line width
-    glLineWidth(scene_state.line_width);
+    // Set line width from global variable
+    glLineWidth(line_width_);
 
     // Bind VAO and draw
     glBindVertexArray(vao_);
@@ -101,6 +101,16 @@ void LineNode::update_vbo()
                  vertices_.data(), 
                  GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void LineNode::set_line_width(float width)
+{
+    line_width_ = width;
+}
+
+float LineNode::get_line_width() const
+{
+    return line_width_;
 }
 
 } // namespace cg

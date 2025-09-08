@@ -27,15 +27,12 @@ std::shared_ptr<PointNode> point_geometry;
 std::shared_ptr<LineNode> line_geometry;
 SceneState scene_state;
 
+// Global size variables (can be used to dynamically adjust sizes if needed)
 float g_lineWidth = 3.0f;
 float g_pointSize = 6.0f;
 
 bool initializeSceneGraph()
 {
-    // Initialize scene state
-    scene_state.point_size = g_pointSize;
-    scene_state.line_width = g_lineWidth;
-
     // Create root node
     root_node = std::make_shared<SceneNode>();
     root_node->set_name("Root");
@@ -113,9 +110,9 @@ bool handleKeys(SDL_Event event)
         g_lineWidth = (float)digit;
         g_pointSize = g_lineWidth * 2.0f;
         
-        // Update scene state
-        scene_state.line_width = g_lineWidth;
-        scene_state.point_size = g_pointSize;
+        // Update the actual objects with new sizes
+        point_shader->set_point_size(g_pointSize);
+        line_geometry->set_line_width(g_lineWidth);
         
         std::cout << "Line width set to: " << g_lineWidth << ", point size set to: " << g_pointSize << std::endl;
     }

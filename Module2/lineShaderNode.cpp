@@ -22,7 +22,6 @@ void LineShaderNode::draw(SceneState &scene_state)
     
     // Update scene state with current locations
     scene_state.position_loc = position_loc_;
-    scene_state.is_drawing_points_loc = is_drawing_points_loc_;
     
     // Draw children (geometry nodes)
     SceneNode::draw(scene_state);

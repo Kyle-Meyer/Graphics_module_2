@@ -31,10 +31,23 @@ class PointShaderNode : public ShaderNode
      */
     virtual bool get_locations() override;
 
+    /**
+     * Set the point size
+     * @param size  Point size value
+     */
+    void set_point_size(float size);
+
+    /**
+     * Get the current point size
+     * @return  Current point size
+     */
+    float get_point_size() const;
+
   private:
     GLint position_loc_;            // Vertex position attribute location
     GLint is_drawing_points_loc_;   // Uniform for distinguishing points vs lines
     GLint point_size_loc_;          // Uniform for point size
+    float point_size_;              // Current point size
 };
 
 } // namespace cg

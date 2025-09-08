@@ -55,12 +55,25 @@ class LineNode : public SceneNode
      */
     void update_vbo();
 
+    /**
+     * Set the line width
+     * @param width  Line width value
+     */
+    void set_line_width(float width);
+
+    /**
+     * Get the current line width
+     * @return  Current line width
+     */
+    float get_line_width() const;
+
   private:
     std::vector<float> vertices_;  // Vertex data (x,y pairs)
     GLuint vao_;                   // Vertex Array Object
     GLuint vbo_;                   // Vertex Buffer Object
     bool initialized_;             // Whether OpenGL resources are initialized
     bool vbo_dirty_;              // Whether VBO needs updating
+    float line_width_;            // Current line width
 };
 
 } // namespace cg

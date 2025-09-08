@@ -20,13 +20,11 @@ void PointShaderNode::draw(SceneState &scene_state)
     // Set uniform to indicate we're drawing points
     glUniform1i(is_drawing_points_loc_, 1);
     
-    // Set point size from scene state
-    glUniform1f(point_size_loc_, scene_state.point_size);
+    // Set point size from global variable
+    glUniform1f(point_size_loc_, point_size_);
     
-    // Update scene state with current locations
+    // Update scene state with current position location only
     scene_state.position_loc = position_loc_;
-    scene_state.is_drawing_points_loc = is_drawing_points_loc_;
-    scene_state.point_size_loc = point_size_loc_;
     
     // Draw children (geometry nodes)
     SceneNode::draw(scene_state);
@@ -61,6 +59,16 @@ bool PointShaderNode::get_locations()
     }
     
     return true;
+}
+
+void PointShaderNode::set_point_size(float size)
+{
+    point_size_ = size;
+}
+
+float PointShaderNode::get_point_size() const
+{
+    return point_size_;
 }
 
 } // namespace cg
