@@ -24,8 +24,8 @@ void main()
     
     //convert NDC coords to color coords (0 to 1)
     //remember these are ADDITIVE
-    float redColor = 1.0 - coord.x; 
-    float greenColor = coord.y;
+    float greenColor = 1.0 - coord.x; 
+    float redColor = coord.y;
 
     vec3 finalColor = vec3(redColor, greenColor, 0.0);
     FragColor = vec4(finalColor, 1.0);
